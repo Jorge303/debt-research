@@ -1,0 +1,708 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bond Credit Workstation</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:       #0d0f12;
+  --panel:    #13161c;
+  --border:   #1f2430;
+  --border2:  #2a3040;
+  --text:     #e8eaf2;
+  --muted:    #8a92aa;
+  --dim:      #4a5268;
+  --amber:    #e8a020;
+  --amber-lo: rgba(232,160,32,0.08);
+  --blue:     #3a7bd5;
+  --blue-lo:  rgba(58,123,213,0.15);
+  --red:      #c94040;
+  --green:    #2e9e6e;
+  --mono:     'IBM Plex Mono', monospace;
+  --sans:     'IBM Plex Sans', sans-serif;
+}
+
+html, body {
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+/* ── UPLOAD ── */
+#upload {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2rem;
+  background: var(--bg);
+}
+
+.u-eyebrow {
+  font-size: 10px;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.u-title {
+  font-family: var(--sans);
+  font-size: 2rem;
+  font-weight: 300;
+  color: var(--text);
+  letter-spacing: -0.01em;
+  text-align: center;
+}
+.u-title span { color: var(--amber); font-weight: 500; }
+
+.u-drop {
+  width: 420px;
+  border: 1px solid var(--border2);
+  border-radius: 4px;
+  padding: 2.5rem 2rem;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+  background: var(--panel);
+}
+.u-drop:hover, .u-drop.over {
+  border-color: var(--amber);
+  background: var(--amber-lo);
+}
+.u-drop input { display: none; }
+.u-drop-icon { font-size: 1.75rem; margin-bottom: 0.75rem; opacity: 0.6; }
+.u-drop-label { color: var(--text); font-size: 12px; margin-bottom: 0.25rem; }
+.u-drop-hint  { color: var(--muted); font-size: 10px; letter-spacing: 0.05em; }
+
+/* ── APP ── */
+#app {
+  display: none;
+  min-height: 100vh;
+  padding: 20px;
+  gap: 16px;
+  flex-direction: column;
+}
+
+/* ── TOP ROW ── */
+.top-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 20px 24px;
+}
+
+.panel-eyebrow {
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--text);
+  margin-bottom: 10px;
+  font-weight: 500;
+}
+
+/* Company panel */
+.company-name {
+  font-family: var(--sans);
+  font-size: 1.75rem;
+  font-weight: 500;
+  color: var(--text);
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+.company-meta {
+  margin-top: 8px;
+  font-size: 10px;
+  color: var(--muted);
+  letter-spacing: 0.05em;
+}
+.company-meta span { color: var(--dim); margin: 0 6px; }
+
+/* Debt panel */
+.debt-number {
+  font-size: 2.2rem;
+  font-weight: 600;
+  color: var(--amber);
+  letter-spacing: -0.03em;
+  line-height: 1;
+}
+.debt-sub {
+  margin-top: 10px;
+  display: flex;
+  gap: 20px;
+}
+.debt-stat { }
+.debt-stat-label { font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+.debt-stat-val   { font-size: 13px; color: var(--text); margin-top: 2px; }
+
+/* ── CHART PANELS ── */
+.chart-panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 20px 24px 16px;
+}
+
+.chart-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+.chart-title {
+  font-size: 11px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--text);
+  font-weight: 500;
+}
+.chart-legend {
+  display: flex;
+  gap: 16px;
+}
+.leg-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+.leg-swatch {
+  width: 10px; height: 10px;
+  border-radius: 2px;
+}
+
+.chart-area { width: 100%; overflow-x: auto; }
+.chart-area svg { display: block; }
+
+/* tooltip */
+#tip {
+  position: fixed;
+  background: #1a1e28;
+  border: 1px solid var(--border2);
+  border-radius: 3px;
+  padding: 8px 12px;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text);
+  pointer-events: none;
+  z-index: 999;
+  display: none;
+  line-height: 1.8;
+  max-width: 240px;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.5);
+}
+#tip strong { color: var(--amber); font-weight: 500; }
+
+/* new file link */
+.new-file-btn {
+  position: fixed;
+  top: 16px; right: 20px;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  color: var(--muted);
+  cursor: pointer;
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 4px 10px;
+  font-family: var(--mono);
+  transition: color 0.15s, border-color 0.15s;
+  display: none;
+}
+.new-file-btn:hover { color: var(--text); border-color: var(--border2); }
+
+/* scrollbar */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+</style>
+</head>
+<body>
+
+<!-- UPLOAD -->
+<div id="upload">
+  <div class="u-eyebrow">Bond Credit Workstation</div>
+  <div class="u-title">Drop your <span>master CSV</span><br>to load the dashboard</div>
+  <div class="u-drop" id="dropZone" onclick="document.getElementById('fi').click()">
+    <input type="file" id="fi" accept=".csv,.tsv,.txt">
+    <div class="u-drop-icon">▤</div>
+    <div class="u-drop-label">Click or drag 3m_bonds_master.csv</div>
+    <div class="u-drop-hint">tab · comma · any delimiter</div>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app">
+  <!-- TOP ROW -->
+  <div class="top-row">
+    <div class="panel" id="panelCompany">
+      <div class="panel-eyebrow">Issuer</div>
+      <div class="company-name" id="companyName">—</div>
+      <div class="company-meta" id="companyMeta"></div>
+    </div>
+    <div class="panel" id="panelDebt">
+      <div class="panel-eyebrow">Total Debt Outstanding</div>
+      <div class="debt-number" id="debtNumber">—</div>
+      <div class="debt-sub" id="debtSub"></div>
+    </div>
+  </div>
+
+  <!-- WATERFALL -->
+  <div class="chart-panel">
+    <div class="chart-header">
+      <div class="chart-title">Debt Maturity &amp; Payment Waterfall — Annual Cash Flows (USD equivalent)</div>
+      <div class="chart-legend">
+        <div class="leg-item"><div class="leg-swatch" style="background:var(--blue)"></div>Coupon</div>
+        <div class="leg-item"><div class="leg-swatch" style="background:var(--red)"></div>Principal</div>
+      </div>
+    </div>
+    <div class="chart-area" id="wallArea"></div>
+  </div>
+
+  <!-- SPREAD HISTORY -->
+  <div class="chart-panel">
+    <div class="chart-header">
+      <select id="spreadMetric" onchange="renderSpread()" style="
+        background: transparent;
+        border: none;
+        border-bottom: 1px solid var(--border2);
+        color: var(--text);
+        font-family: var(--mono);
+        font-size: 11px;
+        font-weight: 500;
+        letter-spacing: 0.15em;
+        text-transform: uppercase;
+        cursor: pointer;
+        outline: none;
+        padding: 0 20px 4px 0;
+        appearance: none;
+        -webkit-appearance: none;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%238a92aa'/%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: right 4px center;
+      ">
+        <option value="spread">Spread at Issuance</option>
+        <option value="yield">Total Yield at Issuance</option>
+        <option value="coupon">Coupon Rate</option>
+      </select>
+      <div class="chart-legend" id="spreadLeg"></div>
+    </div>
+    <div class="chart-area" id="spreadArea"></div>
+  </div>
+</div>
+
+<button class="new-file-btn" id="newFileBtn" onclick="reset()">↩ new file</button>
+<div id="tip"></div>
+
+<script>
+// ─────────────────────────────────────────────────────────────────
+const EUR_USD = 1.10;
+const TODAY   = new Date();
+
+const TENOR_BUCKETS = [
+  { key:'≤3Y',     max:3,   color:'#5b9bd5' },
+  { key:'3–5Y',    max:5,   color:'#4f9cf9' },
+  { key:'5.1–10Y', max:10,  color:'#9b6dff' },
+  { key:'10.1–20Y',max:20,  color:'#e8a020' },
+  { key:'20Y+',    max:999, color:'#e05050' },
+  { key:'Float',   max:999, color:'#5a7a6a' },
+];
+
+function tenorColor(years, rateType) {
+  if (rateType === 'Floating') return '#5a7a6a';
+  for (const b of TENOR_BUCKETS) if (years <= b.max) return b.color;
+  return '#888';
+}
+function tenorKey(years, rateType) {
+  if (rateType === 'Floating') return 'Float';
+  for (const b of TENOR_BUCKETS) if (years <= b.max) return b.key;
+  return '30Y+';
+}
+
+function parseDate(v) {
+  if (!v || !v.trim()) return null;
+  const s = v.trim();
+  const m = s.match(/^(\d{1,2})-([A-Za-z]{3})-(\d{2,4})$/);
+  if (m) {
+    const yr = m[3].length === 2 ? '20' + m[3] : m[3];
+    return new Date(`${m[2]} ${m[1]}, ${yr}`);
+  }
+  const d = new Date(s);
+  return isNaN(d) ? null : d;
+}
+
+function parsePrincipal(v, ccy) {
+  if (!v) return null;
+  const m = String(v).replace(/,/g,'').match(/[\d.]+/);
+  if (!m) return null;
+  let n = parseFloat(m[0]) / 1e6;
+  if ((ccy||'').trim().toUpperCase() === 'EUR') n *= EUR_USD;
+  return n;
+}
+
+function parseNum(v) {
+  if (v == null || v === '') return null;
+  const m = String(v).match(/[-\d.]+/);
+  return m ? parseFloat(m[0]) : null;
+}
+
+function fmtM(v) {
+  if (v >= 1000) return `$${(v/1000).toFixed(2)}B`;
+  return `$${v.toFixed(0)}M`;
+}
+
+function process(rows) {
+  const out = [];
+  for (const r of rows) {
+    if (!r.maturity || !r.trade_date || !r.principal_amount) continue;
+    if (!r.rate_type || !['Fixed','Floating'].includes(r.rate_type)) continue;
+    const mat = parseDate(r.maturity);
+    const trd = parseDate(r.trade_date);
+    if (!mat || !trd) continue;
+    const pa = parsePrincipal(r.principal_amount, r.currency);
+    if (!pa || pa <= 0) continue;
+    const tenorY = (mat - trd) / (365.25 * 864e5);
+    out.push({
+      ...r,
+      _mat: mat, _trd: trd, _pa: pa,
+      _coupon: parseNum(r.coupon),
+      _spread: parseNum(r.spread) || parseNum(r.float_spread),
+      _yield:  parseNum(r.yield_to_maturity),
+      _tenor:  tenorY,
+      _tkey:   tenorKey(tenorY, r.rate_type),
+      _tcol:   tenorColor(tenorY, r.rate_type),
+      _ccy:    (r.currency||'USD').trim().toUpperCase(),
+      _future: mat > TODAY,
+    });
+  }
+  return out;
+}
+
+// ─────────────────────────────────────────────────────────────────
+// UPLOAD
+// ─────────────────────────────────────────────────────────────────
+let bonds = [];
+
+const dz = document.getElementById('dropZone');
+dz.addEventListener('dragover',  e => { e.preventDefault(); dz.classList.add('over'); });
+dz.addEventListener('dragleave', ()  => dz.classList.remove('over'));
+dz.addEventListener('drop', e => { e.preventDefault(); dz.classList.remove('over'); load(e.dataTransfer.files[0]); });
+document.getElementById('fi').addEventListener('change', e => load(e.target.files[0]));
+
+function load(file) {
+  if (!file) return;
+  Papa.parse(file, {
+    header: true, skipEmptyLines: true, delimiter: '',
+    complete: res => {
+      bonds = process(res.data);
+      if (!bonds.length) { alert('No valid bond rows found — check the file format.'); return; }
+      document.getElementById('upload').style.display = 'none';
+      const app = document.getElementById('app');
+      app.style.display = 'flex';
+      document.getElementById('newFileBtn').style.display = 'block';
+      render();
+    },
+    error: e => alert('Parse error: ' + e.message)
+  });
+}
+
+function reset() {
+  bonds = [];
+  document.getElementById('upload').style.display = 'flex';
+  document.getElementById('app').style.display    = 'none';
+  document.getElementById('newFileBtn').style.display = 'none';
+  document.getElementById('fi').value = '';
+  document.getElementById('wallArea').innerHTML   = '';
+  document.getElementById('spreadArea').innerHTML = '';
+}
+
+// ─────────────────────────────────────────────────────────────────
+// RENDER
+// ─────────────────────────────────────────────────────────────────
+function render() {
+  renderTopPanels();
+  renderWaterfall();
+  renderSpread();
+}
+
+// ── TOP PANELS ───────────────────────────────────────────────────
+function renderTopPanels() {
+  const company  = bonds.find(b => b.issuer)?.issuer || '3M Company';
+  const latestRating = [...bonds].sort((a,b)=>b._trd-a._trd).find(b=>b.ratings)?.ratings || '';
+  const moodys = latestRating.split('/')[0]?.trim().replace(/\s*\(.*$/,'') || '';
+  const sp     = latestRating.split('/')[1]?.trim().replace(/\s*\(.*$/,'').replace(/\s*\(Moody.*$/i,'').trim() || '';
+
+  const earliest = bonds.reduce((a,b)=>a._trd<b._trd?a:b)._trd.getFullYear();
+  const latest   = bonds.reduce((a,b)=>a._trd>b._trd?a:b)._trd.getFullYear();
+
+  document.getElementById('companyName').textContent = company;
+  document.getElementById('companyMeta').innerHTML =
+    `${bonds.length} instruments<span>·</span>${earliest}–${latest}` +
+    (moodys ? `<span>·</span>${moodys}${sp ? ' / ' + sp : ''}` : '');
+
+  const outstanding = bonds.filter(b=>b._future).reduce((s,b)=>s+b._pa,0);
+  const nLive  = bonds.filter(b=>b._future).length;
+  const nFixed = bonds.filter(b=>b._future && b.rate_type==='Fixed').length;
+  const nextMat = bonds.filter(b=>b._future).sort((a,b)=>a._mat-b._mat)[0];
+
+  const fixedBonds = bonds.filter(b=>b.rate_type==='Fixed' && b._coupon);
+  const wavg = fixedBonds.length
+    ? fixedBonds.reduce((s,b)=>s+b._coupon*b._pa,0) / fixedBonds.reduce((s,b)=>s+b._pa,0)
+    : null;
+
+  document.getElementById('debtNumber').textContent = fmtM(outstanding);
+  document.getElementById('debtSub').innerHTML = [
+    `<div class="debt-stat"><div class="debt-stat-label">Live bonds</div><div class="debt-stat-val">${nLive}</div></div>`,
+    wavg != null ? `<div class="debt-stat"><div class="debt-stat-label">Wtd avg coupon</div><div class="debt-stat-val">${wavg.toFixed(3)}%</div></div>` : '',
+    nextMat ? `<div class="debt-stat"><div class="debt-stat-label">Next maturity</div><div class="debt-stat-val">${nextMat._mat.getFullYear()} · ${fmtM(nextMat._pa)}</div></div>` : '',
+  ].join('');
+}
+
+// ── WATERFALL ────────────────────────────────────────────────────
+function renderWaterfall() {
+  const area = document.getElementById('wallArea');
+  area.innerHTML = '';
+
+  // Build year buckets: only future years + current year
+  const byYear = {};
+  for (const b of bonds) {
+    const matYr = b._mat.getFullYear();
+    if (matYr < TODAY.getFullYear()) continue;
+
+    if (!byYear[matYr]) byYear[matYr] = { coupon:0, principal:0, bonds:[] };
+    byYear[matYr].principal += b._pa;
+    byYear[matYr].bonds.push(b);
+
+    if (b._coupon && b.rate_type === 'Fixed') {
+      const startYr = Math.max(b._trd.getFullYear(), TODAY.getFullYear());
+      for (let yr = startYr; yr <= matYr; yr++) {
+        if (!byYear[yr]) byYear[yr] = { coupon:0, principal:0, bonds:[] };
+        byYear[yr].coupon += b._pa * b._coupon / 100;
+      }
+    }
+  }
+
+  const years = Object.keys(byYear).map(Number).sort((a,b)=>a-b);
+  if (!years.length) { area.innerHTML = '<div style="padding:2rem;color:var(--muted);text-align:center">No future maturities in dataset</div>'; return; }
+
+  const W = Math.max(years.length * 52 + 80, area.clientWidth || 800);
+  const H = 280;
+  const mg = { t:10, r:16, b:44, l:70 };
+  const iW = W - mg.l - mg.r;
+  const iH = H - mg.t - mg.b;
+
+  const maxVal = d3.max(years, y => byYear[y].coupon + byYear[y].principal);
+
+  const svg = d3.select(area).append('svg')
+    .attr('width', W).attr('height', H);
+  const g = svg.append('g').attr('transform', `translate(${mg.l},${mg.t})`);
+
+  const x = d3.scaleBand().domain(years).range([0, iW]).padding(0.28);
+  const y = d3.scaleLinear().domain([0, maxVal * 1.13]).range([iH, 0]);
+
+  // Grid lines
+  g.selectAll('.gl').data(y.ticks(5)).join('line').attr('class','gl')
+    .attr('x1',0).attr('x2',iW).attr('y1',d=>y(d)).attr('y2',d=>y(d))
+    .attr('stroke','var(--border)').attr('stroke-dasharray','2,4');
+
+  // Y axis
+  g.append('g')
+    .call(d3.axisLeft(y).ticks(5)
+      .tickFormat(v => v >= 1000 ? `$${v/1000}B` : `$${v}M`))
+    .call(ax => {
+      ax.select('.domain').remove();
+      ax.selectAll('text').attr('fill','var(--muted)').attr('font-size',9).attr('font-family','var(--mono)');
+      ax.selectAll('.tick line').remove();
+    });
+
+  // X axis
+  g.append('g').attr('transform',`translate(0,${iH})`)
+    .call(d3.axisBottom(x).tickSize(0))
+    .call(ax => {
+      ax.select('.domain').attr('stroke','var(--border)');
+      ax.selectAll('text').attr('fill','var(--muted)').attr('font-size',9)
+        .attr('font-family','var(--mono)').attr('dy','1.2em');
+    });
+
+  const tip = document.getElementById('tip');
+
+  years.forEach(yr => {
+    const d  = byYear[yr];
+    const bx = x(yr), bw = x.bandwidth();
+
+    // Coupon bar
+    if (d.coupon > 0) {
+      const ch = iH - y(d.coupon);
+      g.append('rect')
+        .attr('x', bx).attr('width', bw)
+        .attr('y', y(d.coupon)).attr('height', ch)
+        .attr('fill','var(--blue)').attr('opacity',0.7).attr('rx',1)
+        .on('mousemove', e => {
+          showTip(e, `<strong>${yr}</strong><br>Coupon payments<br>$${d.coupon.toFixed(0)}M`);
+        }).on('mouseleave', hideTip);
+    }
+
+    // Principal bar
+    if (d.principal > 0) {
+      const ph = iH - y(d.principal);
+      const base = d.coupon > 0 ? y(d.coupon) : iH;
+      g.append('rect')
+        .attr('x', bx).attr('width', bw)
+        .attr('y', base - ph).attr('height', ph)
+        .attr('fill','var(--red)').attr('opacity',0.8).attr('rx',1)
+        .on('mousemove', e => {
+          const bondList = d.bonds.map(b =>
+            (b.bond_title||b.security_description||'').replace(/SEC-?Registered\s*/i,'').substring(0,36)
+            + `  ${fmtM(b._pa)}`
+          ).join('\n');
+          showTip(e, `<strong>${yr} — Principal</strong><br>${fmtM(d.principal)}<br><br><span style="color:var(--muted)">${bondList.replace(/\n/g,'<br>')}</span>`);
+        }).on('mouseleave', hideTip);
+
+      // Amount label above bar
+      const totalH = (d.coupon > 0 ? y(d.coupon) : iH) - ph;
+      if (ph > 10) {
+        g.append('text')
+          .attr('x', bx + bw/2)
+          .attr('y', totalH - 4)
+          .attr('text-anchor','middle')
+          .attr('fill','var(--red)')
+          .attr('font-size', 8)
+          .attr('font-family','var(--mono)')
+          .attr('opacity', 0.9)
+          .text(fmtM(d.principal));
+      }
+    }
+  });
+}
+
+// ── SPREAD / YIELD / COUPON CHART ────────────────────────────────
+function renderSpread() {
+  const area   = document.getElementById('spreadArea');
+  area.innerHTML = '';
+
+  const metric = document.getElementById('spreadMetric')?.value || 'spread';
+
+  // Pick the right field and label per metric
+  const cfg = {
+    spread: { field: '_spread', label: 'bps', fmt: v => v.toFixed(1) + ' bps',  tip: 'Spread' },
+    yield:  { field: '_yield',  label: '%',   fmt: v => v.toFixed(3) + '%',      tip: 'Yield'  },
+    coupon: { field: '_coupon', label: '%',   fmt: v => v.toFixed(3) + '%',      tip: 'Coupon' },
+  }[metric];
+
+  const data = bonds.filter(b =>
+    b.rate_type === 'Fixed' && b[cfg.field] != null && b._trd
+  );
+
+  if (!data.length) {
+    area.innerHTML = `<div style="padding:2rem;color:var(--muted);text-align:center">No ${metric} data available</div>`;
+    return;
+  }
+
+  const W  = area.clientWidth || 900;
+  const H  = 260;
+  const mg = { t:10, r:20, b:44, l:64 };
+  const iW = W - mg.l - mg.r;
+  const iH = H - mg.t - mg.b;
+
+  const svg = d3.select(area).append('svg').attr('width', W).attr('height', H);
+  const g   = svg.append('g').attr('transform', `translate(${mg.l},${mg.t})`);
+
+  const vals = data.map(d => d[cfg.field]);
+  const yMin = metric === 'spread' ? 0 : Math.max(0, d3.min(vals) * 0.85);
+  const yMax = d3.max(vals) * 1.15;
+
+  const x = d3.scaleTime().domain(d3.extent(data, d=>d._trd)).range([0, iW]).nice();
+  const y = d3.scaleLinear().domain([yMin, yMax]).range([iH, 0]).nice();
+
+  // Grid
+  g.selectAll('.gl').data(y.ticks(5)).join('line').attr('class','gl')
+    .attr('x1',0).attr('x2',iW).attr('y1',d=>y(d)).attr('y2',d=>y(d))
+    .attr('stroke','var(--border)').attr('stroke-dasharray','2,4');
+
+  // Y axis
+  g.append('g').call(d3.axisLeft(y).ticks(5).tickFormat(v =>
+    metric === 'spread' ? v + ' bps' : v.toFixed(1) + '%'
+  )).call(ax => {
+    ax.select('.domain').remove();
+    ax.selectAll('text').attr('fill','var(--muted)').attr('font-size',9).attr('font-family','var(--mono)');
+    ax.selectAll('.tick line').remove();
+  });
+
+  // X axis
+  g.append('g').attr('transform',`translate(0,${iH})`)
+    .call(d3.axisBottom(x).ticks(8).tickSize(0))
+    .call(ax => {
+      ax.select('.domain').attr('stroke','var(--border)');
+      ax.selectAll('text').attr('fill','var(--muted)').attr('font-size',9)
+        .attr('font-family','var(--mono)').attr('dy','1.2em');
+    });
+
+  // Dots
+  g.selectAll('circle').data(data).join('circle')
+    .attr('cx', d => x(d._trd))
+    .attr('cy', d => y(d[cfg.field]))
+    .attr('r', 5.5)
+    .attr('fill', d => d._tcol)
+    .attr('opacity', 0.85)
+    .attr('stroke', 'var(--bg)')
+    .attr('stroke-width', 1.5)
+    .on('mousemove', (e, d) => {
+      const name = (d.bond_title||d.security_description||'').replace(/SEC-?Registered\s*/i,'');
+      showTip(e,
+        `<strong>${name || d.maturity}</strong><br>` +
+        `Trade: ${d.trade_date || '—'}<br>` +
+        `Tenor: ${d._tenor.toFixed(1)}Y (${d._tkey})<br>` +
+        `${cfg.tip}: ${cfg.fmt(d[cfg.field])}<br>` +
+        `CCY: ${d._ccy}`
+      );
+    })
+    .on('mouseleave', hideTip);
+
+  // Legend
+  const present  = [...new Set(data.map(d=>d._tkey))];
+  const legItems = TENOR_BUCKETS.filter(b=>present.includes(b.key));
+  document.getElementById('spreadLeg').innerHTML = legItems.map(b =>
+    `<div class="leg-item"><div class="leg-swatch" style="background:${b.color}"></div>${b.key}</div>`
+  ).join('');
+}
+
+// ── TOOLTIP ──────────────────────────────────────────────────────
+function showTip(e, html) {
+  const t = document.getElementById('tip');
+  t.innerHTML = html;
+  t.style.display = 'block';
+  t.style.left = (e.clientX + 14) + 'px';
+  t.style.top  = (e.clientY - 12) + 'px';
+}
+function hideTip() {
+  document.getElementById('tip').style.display = 'none';
+}
+
+window.addEventListener('resize', () => {
+  if (bonds.length) {
+    document.getElementById('wallArea').innerHTML   = '';
+    document.getElementById('spreadArea').innerHTML = '';
+    renderWaterfall();
+    renderSpread();
+  }
+});
+</script>
+</body>
+</html>
